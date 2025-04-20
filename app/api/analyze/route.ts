@@ -1,34 +1,41 @@
 import { NextResponse } from 'next/server';
+import { analyzeText, analyzeImage, analyzeCombined } from '@/lib/analysis';
 
 export async function POST(request: Request) {
   try {
-    const { text } = await request.json();
+    const formData = await request.formData();
+    const text = formData.get('text') as string | null;
+    const image = formData.get('image') as File | null;
 
-    if (!text || typeof text !== 'string') {
+    if (!text && !image) {
       return NextResponse.json(
-        { error: 'Invalid input. Please provide a text string.' },
+        { error: 'Please provide either text or image for analysis' },
         { status: 400 }
       );
     }
 
-    // Generate random result
-    const is_fake = Math.random() > 0.5;
-    const confidence = Math.random() * 0.3 + 0.7; // Random confidence between 0.7 and 1.0
-    
-    // Generate explanation based on the result
-    const explanation = is_fake 
-      ? "This text shows characteristics commonly associated with fake news, such as sensational language and unverified claims."
-      : "This text appears to be from a reliable source with factual information and proper citations.";
+    let result;
+    if (text && image) {
+      // Combined analysis
+      result = await analyzeCombined(text, image);
+    } else if (text) {
+      // Text-only analysis
+      result = await analyzeText(text);
+    } else if (image) {
+      // Image-only analysis
+      result = await analyzeImage(image);
+    } else {
+      return NextResponse.json(
+        { error: 'Invalid input combination' },
+        { status: 400 }
+      );
+    }
 
-    return NextResponse.json({
-      is_fake,
-      confidence,
-      explanation
-    });
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error processing request:', error);
+    console.error('Analysis error:', error);
     return NextResponse.json(
-      { error: 'An error occurred while processing your request.' },
+      { error: 'Failed to analyze content' },
       { status: 500 }
     );
   }
